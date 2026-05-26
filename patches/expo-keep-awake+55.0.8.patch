@@ -1,0 +1,59 @@
+diff --git a/node_modules/expo-keep-awake/src/index.ts b/node_modules/expo-keep-awake/src/index.ts
+index d4669f6..a7f77d6 100644
+--- a/node_modules/expo-keep-awake/src/index.ts
++++ b/node_modules/expo-keep-awake/src/index.ts
+@@ -7,6 +7,20 @@ import { KeepAwakeListener, KeepAwakeOptions } from './KeepAwake.types';
+ /** Default tag, used when no tag has been specified in keep awake method calls. */
+ export const ExpoKeepAwakeTag = 'ExpoKeepAwakeDefaultTag';
+ 
++function isExpectedActivityLifecycleError(error: unknown): boolean {
++  const message = String((error as any)?.message ?? error ?? '').toLowerCase();
++  return message.includes('current activity is no longer available');
++}
++
++function logKeepAwakeLifecycleSkip(action: 'activate' | 'deactivate', tag: string, error: unknown) {
++  if (typeof __DEV__ !== 'undefined' && __DEV__) {
++    console.debug(`[keep-awake] ${action} skipped`, {
++      tag,
++      message: String((error as any)?.message ?? error ?? ''),
++    });
++  }
++}
++
+ /** @returns `true` on all platforms except [unsupported web browsers](https://caniuse.com/wake-lock). */
+ export async function isAvailableAsync(): Promise<boolean> {
+   if (ExpoKeepAwake.isAvailableAsync) {
+@@ -79,7 +93,15 @@ export function activateKeepAwake(tag: string = ExpoKeepAwakeTag): Promise<void>
+  * @param tag Tag to lock screen sleep prevention. If not provided, the default tag is used.
+  */
+ export async function activateKeepAwakeAsync(tag: string = ExpoKeepAwakeTag): Promise<void> {
+-  await ExpoKeepAwake.activate?.(tag);
++  try {
++    await ExpoKeepAwake.activate?.(tag);
++  } catch (error) {
++    if (isExpectedActivityLifecycleError(error)) {
++      logKeepAwakeLifecycleSkip('activate', tag, error);
++      return;
++    }
++    throw error;
++  }
+ }
+ 
+ // @needsAudit
+@@ -91,7 +113,15 @@ export async function activateKeepAwakeAsync(tag: string = ExpoKeepAwakeTag): Pr
+  * the default tag is used.
+  */
+ export async function deactivateKeepAwake(tag: string = ExpoKeepAwakeTag): Promise<void> {
+-  await ExpoKeepAwake.deactivate?.(tag);
++  try {
++    await ExpoKeepAwake.deactivate?.(tag);
++  } catch (error) {
++    if (isExpectedActivityLifecycleError(error)) {
++      logKeepAwakeLifecycleSkip('deactivate', tag, error);
++      return;
++    }
++    throw error;
++  }
+ }
+ 
+ /**

@@ -1,0 +1,21 @@
+import type { ImageSourcePropType } from 'react-native';
+export const holeImages: Record<number, { fairway: ImageSourcePropType; green: ImageSourcePropType }> = {
+  1: { fairway: require('../assets/course-images/hole-01-fairway.jpg'), green: require('../assets/course-images/hole-01-green.jpg') },
+  2: { fairway: require('../assets/course-images/hole-02-fairway.jpg'), green: require('../assets/course-images/hole-02-green.jpg') },
+  3: { fairway: require('../assets/course-images/hole-03-fairway.jpg'), green: require('../assets/course-images/hole-03-green.jpg') },
+  4: { fairway: require('../assets/course-images/hole-04-fairway.jpg'), green: require('../assets/course-images/hole-04-green.jpg') },
+  5: { fairway: require('../assets/course-images/hole-05-fairway.jpg'), green: require('../assets/course-images/hole-05-green.jpg') },
+  6: { fairway: require('../assets/course-images/hole-06-fairway.jpg'), green: require('../assets/course-images/hole-06-green.jpg') },
+  7: { fairway: require('../assets/course-images/hole-07-fairway.jpg'), green: require('../assets/course-images/hole-07-green.jpg') },
+  8: { fairway: require('../assets/course-images/hole-08-fairway.jpg'), green: require('../assets/course-images/hole-08-green.jpg') },
+  9: { fairway: require('../assets/course-images/hole-09-fairway.jpg'), green: require('../assets/course-images/hole-09-green.jpg') },
+  10: { fairway: require('../assets/course-images/hole-10-fairway.jpg'), green: require('../assets/course-images/hole-10-green.jpg') },
+  11: { fairway: require('../assets/course-images/hole-11-fairway.jpg'), green: require('../assets/course-images/hole-11-green.jpg') },
+  12: { fairway: require('../assets/course-images/hole-12-fairway.jpg'), green: require('../assets/course-images/hole-12-green.jpg') },
+  13: { fairway: require('../assets/course-images/hole-13-fairway.jpg'), green: require('../assets/course-images/hole-13-green.jpg') },
+  14: { fairway: require('../assets/course-images/hole-14-fairway.jpg'), green: require('../assets/course-images/hole-14-green.jpg') },
+  15: { fairway: require('../assets/course-images/hole-15-fairway.jpg'), green: require('../assets/course-images/hole-15-green.jpg') },
+  16: { fairway: require('../assets/course-images/hole-16-fairway.jpg'), green: require('../assets/course-images/hole-16-green.jpg') },
+  17: { fairway: require('../assets/course-images/hole-17-fairway.jpg'), green: require('../assets/course-images/hole-17-green.jpg') },
+  18: { fairway: require('../assets/course-images/hole-18-fairway.jpg'), green: require('../assets/course-images/hole-18-green.jpg') },
+};
