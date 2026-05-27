@@ -1,27 +1,27 @@
 module.exports = ({ config }) => {
   const { version: appVersion } = require('./package.json');
-  const profile = process.env.EAS_BUILD_PROFILE ?? 'development';
+  const variant = process.env.APP_VARIANT ?? process.env.EAS_BUILD_PROFILE ?? 'development';
 
-  const isDevelopment = profile === 'development';
-  const isPreview = profile === 'preview';
+  const variantConfig = {
+    development: {
+      name: 'Coal Creek Golf Dev',
+      iosBundleIdentifier: 'ca.coalcreek.golf.dev',
+      androidPackage: 'ca.coalcreek.golf.dev',
+    },
+    preview: {
+      name: 'Coal Creek Golf Preview',
+      iosBundleIdentifier: 'ca.coalcreek.golf.preview',
+      androidPackage: 'ca.coalcreek.golf.preview',
+    },
+    production: {
+      name: 'Coal Creek Golf',
+      iosBundleIdentifier: 'com.coalcreekyardage.book',
+      androidPackage: 'com.coalcreekyardage.book',
+    },
+  };
 
-  const androidPackage = isDevelopment
-    ? 'ca.coalcreek.golf.dev'
-    : isPreview
-      ? 'ca.coalcreek.golf.preview'
-      : 'com.coalcreekyardage.book';
-
-  const iosBundleIdentifier = isDevelopment
-    ? 'ca.coalcreek.golf.dev'
-    : isPreview
-      ? 'ca.coalcreek.golf.preview'
-      : 'com.coalcreekyardage.book';
-
-  const appName = isDevelopment
-    ? 'Coal Creek Golf Dev'
-    : isPreview
-      ? 'Coal Creek Golf Preview'
-      : 'CoalCreekYardageBookExpo';
+  const { name: appName, iosBundleIdentifier, androidPackage } =
+    variantConfig[variant] ?? variantConfig.development;
 
   return {
     expo: {
@@ -82,7 +82,7 @@ module.exports = ({ config }) => {
         policy: 'appVersion',
       },
       extra: {
-        easBuildProfile: profile,
+        easBuildProfile: variant,
         eas: {
           projectId: '8bec8bf6-985d-40d6-b78d-39428b337232',
         },
