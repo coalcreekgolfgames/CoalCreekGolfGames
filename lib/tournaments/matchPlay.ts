@@ -295,7 +295,7 @@ export function calculateFinalResultLabel(params: {
   if (params.tie) return 'Tied'
   if (!params.winner) return null
   if (params.conceded) return 'Conceded'
-  if (params.holesRemaining > 0) return `${Math.abs(params.margin)}&${params.holesRemaining}`
+  if (params.holesRemaining > 0) return `${Math.abs(params.margin)} and ${params.holesRemaining}`
   return `${Math.abs(params.margin)} Up`
 }
 
@@ -316,9 +316,7 @@ function statusLabelForState(params: {
   }
 
   if (params.complete && !params.winner) {
-    if (params.tieHandling === 'allow_tie') return 'Match tied after 18'
-    if (params.tieHandling === 'committee_decision') return 'Committee decision required'
-    return 'Playoff required'
+    return 'Match Halved'
   }
 
   if (!params.leader || params.margin === 0) return 'All Square'
@@ -356,7 +354,7 @@ export function calculateMatchStatus(params: {
   let holesRemaining = totalHoles
 
   for (const hole of scoredHoles) {
-    completedHoles = Math.max(completedHoles, hole.holeNumber)
+    completedHoles += 1
 
     if (hole.winner === 'a') playerAHolesWon += 1
     if (hole.winner === 'b') playerBHolesWon += 1
@@ -395,8 +393,8 @@ export function calculateMatchStatus(params: {
 
   if (!complete && completedHoles >= totalHoles) {
     if (margin === 0) {
-      complete = tieHandling === 'allow_tie' || tieHandling === 'committee_decision'
-      finalResultLabel = complete ? calculateFinalResultLabel({ margin, holesRemaining, winner: null, tie: true }) : null
+      complete = true
+      finalResultLabel = 'Match Halved'
     } else {
       winner = margin > 0 ? 'a' : 'b'
       complete = true

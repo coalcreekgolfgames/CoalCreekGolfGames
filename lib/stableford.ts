@@ -1,4 +1,4 @@
-import { holes as courseHoles, ratingInfoFor } from '@/constants/course'
+import { holes as courseHoles, ratingInfoFor, resolveTeeOption } from '@/constants/course'
 import type {
   HoleDraft,
   LocalRoundDraft,
@@ -88,7 +88,7 @@ export function resolveStablefordHandicap(round: LocalRoundDraft): StablefordHan
     }
   }
 
-  const ratingInfo = ratingInfoFor(round.tee, round.ratingType) as { slope: number; rating: number } | null
+  const ratingInfo = ratingInfoFor(resolveTeeOption(round.tee), round.ratingType) as { slope: number; rating: number } | null
   if (!ratingInfo) {
     return {
       status: 'fallback_gross_pending_handicap',

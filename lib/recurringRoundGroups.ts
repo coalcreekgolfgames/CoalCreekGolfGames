@@ -1,4 +1,5 @@
 import { supabase } from '@/lib/supabase';
+import { isTeeOption, type TeeOption } from '@/constants/course';
 import type { GroupParticipant } from '@/types/round';
 
 export type RecurringRoundGroup = {
@@ -19,6 +20,7 @@ export type RecurringRoundGroupMember = {
   displayName: string;
   firstName: string;
   lastName: string;
+  selectedTee: TeeOption | null;
 };
 
 type SaveRecurringRoundGroupParams = {
@@ -74,7 +76,7 @@ export async function getRecurringRoundGroupMembers(
 
   const { data, error } = await supabase
     .from('recurring_round_group_members')
-    .select('id, recurring_group_id, seat_order, user_id, guest_profile_id, display_name, created_at')
+    .select('id, recurring_group_id, seat_order, user_id, guest_profile_id, display_name, selected_tee, created_at')
     .eq('recurring_group_id', recurringGroupId)
     .order('seat_order', { ascending: true })
     .order('created_at', { ascending: true });
@@ -118,6 +120,7 @@ export async function getRecurringRoundGroupMembers(
       displayName,
       firstName: profile?.first_name ?? guest?.first_name ?? fallbackParts.firstName,
       lastName: profile?.last_name ?? guest?.last_name ?? fallbackParts.lastName,
+      selectedTee: isTeeOption(row.selected_tee) ? row.selected_tee : null,
     };
   });
 }
@@ -147,6 +150,7 @@ export async function saveRecurringRoundGroup({
     user_id: participant.type === 'app_user' ? participant.id : null,
     guest_profile_id: participant.type === 'guest' ? participant.id : null,
     display_name: participant.displayName,
+    selected_tee: participant.selectedTee ?? null,
   }));
 
   const { error: membersError } = await supabase

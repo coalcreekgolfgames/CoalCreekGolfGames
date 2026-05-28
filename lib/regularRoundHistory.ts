@@ -12,6 +12,7 @@ import {
 import { getNassauHistorySummary, type NassauGameSummary } from '@/lib/nassauBackend';
 import { getSkinsHistorySummary, type SkinsHistorySummary } from '@/lib/skinsBackend';
 import { getWolfHistorySummary, type WolfGameSummary } from '@/lib/wolfBackend';
+import { DEFAULT_TEE_OPTION, resolveTeeOption } from '@/constants/course';
 import type { SavedRound } from '@/types/round';
 
 const DEBUG_REGULAR_HISTORY = false;
@@ -107,7 +108,7 @@ function buildGolfCanadaPrepFromBackendDetail(params: {
     id: detail.roundId,
     draftOwnerUserId: currentUserId,
     date: detail.roundDate ?? new Date().toISOString(),
-    tee: 'Blue' as any,
+    tee: resolveTeeOption(detail.teeName ?? DEFAULT_TEE_OPTION),
     ratingType: 'middle' as any,
     currentHole: Math.max(1, detail.holeCount || 1),
     holes: scores.map((entry) => ({

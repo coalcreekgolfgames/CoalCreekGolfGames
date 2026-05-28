@@ -650,7 +650,7 @@ export async function getStandardRoundBackendDetail(roundId: string, userId: str
     status: firstRow.status ?? null,
     courseName: firstRow.course_name ?? null,
     roundDate: firstRow.round_date ?? null,
-    teeName: null,
+    teeName: firstRow.tee_name ?? null,
     currentUserScore: Number(firstRow.current_user_score ?? 0),
     holeCount: Number(firstRow.holes_complete ?? 0),
     isCreator,

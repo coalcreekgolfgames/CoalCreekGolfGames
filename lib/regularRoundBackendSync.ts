@@ -44,6 +44,7 @@ type StandardRoundParticipantRow = {
   guest_last_name?: string | null;
   participant_order?: number | null;
   is_scorer?: boolean | null;
+  selected_tee?: string | null;
 };
 
 type StandardHoleScoreRow = {
@@ -363,7 +364,7 @@ function scoreComplete(value: number | null | undefined) {
 async function loadStandardRoundParticipantRows(roundId: string) {
   const { data, error } = await supabase
     .from('round_participants')
-    .select('id, user_id, guest_profile_id, guest_first_name, guest_last_name, participant_order, is_scorer')
+    .select('id, user_id, guest_profile_id, guest_first_name, guest_last_name, participant_order, is_scorer, selected_tee')
     .eq('round_id', roundId)
     .order('participant_order', { ascending: true });
 
@@ -393,6 +394,7 @@ async function ensureStandardRoundParticipantBindings(round: LocalRoundDraft, sc
       guest_last_name: participant.type === 'guest' ? participant.lastName : null,
       participant_order: participantOrder,
       is_scorer: participant.isScorekeeper === true,
+      selected_tee: participant.selectedTee ?? round.tee ?? null,
     };
     const existingRow = rowsByOrder.get(participantOrder) ?? null;
 
@@ -408,7 +410,8 @@ async function ensureStandardRoundParticipantBindings(round: LocalRoundDraft, sc
       || !sameTextValue(existingRow.guest_first_name, desiredRow.guest_first_name)
       || !sameTextValue(existingRow.guest_last_name, desiredRow.guest_last_name)
       || Number(existingRow.participant_order ?? 0) !== participantOrder
-      || (existingRow.is_scorer === true) !== desiredRow.is_scorer;
+      || (existingRow.is_scorer === true) !== desiredRow.is_scorer
+      || (existingRow as any).selected_tee !== desiredRow.selected_tee;
 
     if (!rowNeedsUpdate) continue;
 
@@ -421,6 +424,7 @@ async function ensureStandardRoundParticipantBindings(round: LocalRoundDraft, sc
         guest_last_name: desiredRow.guest_last_name,
         participant_order: desiredRow.participant_order,
         is_scorer: desiredRow.is_scorer,
+        selected_tee: desiredRow.selected_tee,
       })
       .eq('id', existingRow.id);
 
@@ -532,6 +536,7 @@ export async function ensureStandardRegularBackendRound(params: {
       .insert({
         course_name: 'Coal Creek',
         round_date: round.date || todayIsoDate(),
+        tee_name: round.tee,
         tournament_id: null,
         created_by_user_id: userId,
         scoring_user_id: userId,

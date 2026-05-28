@@ -1,5 +1,6 @@
 import { supabase } from '@/lib/supabase';
 import { BACKEND_REGULAR_GROUP_ROUND_MODE } from '@/lib/regularRoundBackendMode';
+import { isTeeOption, type TeeOption } from '@/constants/course';
 import type { GroupParticipant, LocalRoundDraft } from '@/types/round';
 
 export type GroupRoundParticipantCompanionAccess = {
@@ -25,6 +26,7 @@ export type GroupRoundParticipantCompanionAccess = {
   official_completed_hole?: number | null;
   live_progress_started_at?: string | null;
   live_progress_updated_at?: string | null;
+  selected_tee?: TeeOption | null;
 };
 
 export type GroupRoundLiveProgress = {
@@ -227,6 +229,9 @@ function normalizeAccess(row: any): GroupRoundParticipantCompanionAccess {
     official_completed_hole: numberOrNull(valueFromRow(row, 'official_completed_hole', 'officialCompletedHole')),
     live_progress_started_at: valueFromRow<string | null | undefined>(row, 'live_progress_started_at', 'liveProgressStartedAt') ?? null,
     live_progress_updated_at: valueFromRow<string | null | undefined>(row, 'live_progress_updated_at', 'liveProgressUpdatedAt') ?? null,
+    selected_tee: isTeeOption(valueFromRow(row, 'selected_tee', 'selectedTee'))
+      ? valueFromRow<TeeOption>(row, 'selected_tee', 'selectedTee')
+      : null,
   };
 }
 
@@ -326,6 +331,7 @@ function mapStartRegularGroupRoundParticipant(participant: GroupParticipant, sco
     display_name: participant.displayName,
     participant_order: participantOrder,
     is_scorer: participant.isScorekeeper === true,
+    selected_tee: participant.selectedTee ?? null,
   };
 }
 
@@ -453,6 +459,19 @@ export async function getGroupRoundCompanionAccess(roundId: string, userId: stri
     .maybeSingle();
 
   if (error) throw error;
+  let selectedTee: TeeOption | null = null;
+  if (data?.round_participant_id) {
+    const teeRes = await supabase
+      .from('round_participants')
+      .select('selected_tee')
+      .eq('id', data.round_participant_id)
+      .maybeSingle();
+    if (teeRes.error) {
+      console.warn('[group-round-access] participant_tee_lookup_failed', teeRes.error?.message ?? teeRes.error);
+    } else if (isTeeOption(teeRes.data?.selected_tee)) {
+      selectedTee = teeRes.data.selected_tee;
+    }
+  }
   logGroupRoundAccessDebug('companion_access_query', {
     roundId,
     requestedUserId: userId,
@@ -463,7 +482,19 @@ export async function getGroupRoundCompanionAccess(roundId: string, userId: stri
     liveProgressUpdatedAt: data?.live_progress_updated_at ?? null,
     hasAccessRow: !!data,
   });
-  return data ? normalizeAccess(data) : null;
+  return data ? normalizeAccess({ ...data, selected_tee: selectedTee }) : null;
+}
+
+export async function updateRoundParticipantSelectedTee(params: {
+  roundParticipantId: string;
+  selectedTee: TeeOption;
+}) {
+  const { error } = await supabase
+    .from('round_participants')
+    .update({ selected_tee: params.selectedTee })
+    .eq('id', params.roundParticipantId);
+
+  if (error) throw error;
 }
 
 export async function getCurrentUserActiveGroupRound(userId: string): Promise<ActiveGroupRoundSummary | null> {
@@ -550,6 +581,7 @@ export async function getGroupRoundLiveProgress(roundId: string) {
 
 export async function startRegularGroupRound(params: {
   roundDate: string;
+  teeName: TeeOption;
   scoringUserId: string;
   participants: GroupParticipant[];
   gameType: GroupRoundCompanionGameType;
@@ -581,6 +613,7 @@ export async function startRegularGroupRound(params: {
       .insert({
         course_name: 'Coal Creek',
         round_date: params.roundDate,
+        tee_name: params.teeName,
         created_by_user_id: params.scoringUserId,
         scoring_user_id: params.scoringUserId,
         round_mode: BACKEND_REGULAR_GROUP_ROUND_MODE,
@@ -601,6 +634,7 @@ export async function startRegularGroupRound(params: {
         guest_last_name: participant.guest_last_name,
         participant_order: participant.participant_order,
         is_scorer: participant.is_scorer,
+        selected_tee: participant.selected_tee,
       })),
     );
 
@@ -700,6 +734,22 @@ export async function startRegularGroupRound(params: {
   if (!row?.round_id) {
     throw new Error('Regular group round start did not return a backend round id.');
   }
+
+  const roundUpdateRes = await supabase
+    .from('rounds')
+    .update({ tee_name: params.teeName })
+    .eq('id', row.round_id);
+  if (roundUpdateRes.error) throw roundUpdateRes.error;
+
+  await Promise.all(participantPayload.map(async (participant) => {
+    if (!participant.selected_tee) return;
+    const participantUpdateRes = await supabase
+      .from('round_participants')
+      .update({ selected_tee: participant.selected_tee })
+      .eq('round_id', row.round_id)
+      .eq('participant_order', participant.participant_order);
+    if (participantUpdateRes.error) throw participantUpdateRes.error;
+  }));
 
   return {
     round_id: row.round_id,

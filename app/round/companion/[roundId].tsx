@@ -5,6 +5,7 @@ import { router, useLocalSearchParams } from 'expo-router';
 import { TournamentQuickNav } from '@/components/navigation/TournamentQuickNav';
 import { AppButton } from '@/components/ui/AppButton';
 import { SectionCard } from '@/components/ui/SectionCard';
+import { teeOptions, type TeeOption } from '@/constants/course';
 import {
   getGroupRoundCompanionAccess,
   getCurrentSupabaseSessionUserId,
@@ -14,6 +15,7 @@ import {
   mergeGroupRoundLiveProgressIntoAccess,
   type GroupRoundCompanionGameType,
   type GroupRoundParticipantCompanionAccess,
+  updateRoundParticipantSelectedTee,
   upsertGroupRoundCompanionMode,
 } from '@/lib/groupRoundCompanions';
 import { useAuth } from '@/providers/AuthProvider';
@@ -35,6 +37,7 @@ export default function GroupRoundCompanionChooserScreen() {
   const [gameType, setGameType] = useState<GroupRoundCompanionGameType>('standard');
   const [wantsScoreEntry, setWantsScoreEntry] = useState(false);
   const [wantsStatsEntry, setWantsStatsEntry] = useState(false);
+  const [selectedTee, setSelectedTee] = useState<TeeOption | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -118,6 +121,7 @@ export default function GroupRoundCompanionChooserScreen() {
       });
       setWantsScoreEntry(mergedAccess?.wants_score_entry === true);
       setWantsStatsEntry(mergedAccess?.wants_stats_entry === true);
+      setSelectedTee(mergedAccess?.selected_tee ?? null);
     } catch (nextError: any) {
       if (!isMounted()) return;
       logCompanionDebug('load_error', {
@@ -155,9 +159,17 @@ export default function GroupRoundCompanionChooserScreen() {
 
   const handleSave = async () => {
     if (!access || !user?.id) return;
+    if (!selectedTee) {
+      Alert.alert('Choose a tee', 'Select the tee set you are playing before continuing.');
+      return;
+    }
 
     setSaving(true);
     try {
+      await updateRoundParticipantSelectedTee({
+        roundParticipantId: access.round_participant_id,
+        selectedTee,
+      });
       const companion = await upsertGroupRoundCompanionMode({
         roundId,
         roundParticipantId: access.round_participant_id,
@@ -247,7 +259,24 @@ export default function GroupRoundCompanionChooserScreen() {
               </View>
             </SectionCard>
 
-            <AppButton title={saving ? 'Saving...' : 'Continue'} onPress={handleSave} disabled={saving} />
+            <SectionCard>
+              <Text style={styles.sectionTitle}>Your Tee</Text>
+              <Text style={styles.body}>Choose the tee you are playing. This can be different from the scorekeeper or other players.</Text>
+              <View style={styles.teeGrid}>
+                {teeOptions.map((option) => (
+                  <AppButton
+                    key={option}
+                    title={option}
+                    onPress={() => setSelectedTee(option)}
+                    variant={selectedTee === option ? 'primary' : 'secondary'}
+                    compact
+                    style={styles.teeButton}
+                  />
+                ))}
+              </View>
+            </SectionCard>
+
+            <AppButton title={saving ? 'Saving...' : 'Continue'} onPress={handleSave} disabled={saving || !selectedTee} />
           </>
         )}
 
@@ -268,4 +297,6 @@ const styles = StyleSheet.create({
   emptyTitle: { fontSize: 18, fontWeight: '800', color: '#132117', marginBottom: 8 },
   body: { fontSize: 14, color: '#5a6b61', lineHeight: 21 },
   optionList: { gap: 10 },
+  teeGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
+  teeButton: { minWidth: 96 },
 });

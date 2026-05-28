@@ -29,14 +29,19 @@ function todayIsoDate() {
 export default function SoloStartRoundScreen() {
   const { profile, user } = useAuth();
   const [date, setDate] = useState(todayIsoDate());
-  const [tee, setTee] = useState<TeeOption>('Silver');
+  const [tee, setTee] = useState<TeeOption | null>(null);
   const [ratingType, setRatingType] = useState<RatingType>('men');
   const [statsEnabled, setStatsEnabled] = useState(true);
 
-  const rating = ratingInfoFor(tee, ratingType) as { rating: string | number; slope: string | number } | null;
+  const rating = tee ? ratingInfoFor(tee, ratingType) as { rating: string | number; slope: string | number } | null : null;
   const welcomeName = getRoundWelcomeFirstName({ profile, user });
 
   const startFreshRound = async () => {
+    if (!tee) {
+      Alert.alert('Choose a tee', 'Select the tee set you are playing before starting the round.');
+      return;
+    }
+
     const draft: LocalRoundDraft = {
       id: `${Date.now()}`,
       date,
@@ -139,9 +144,10 @@ export default function SoloStartRoundScreen() {
           </View>
 
           <SectionCard style={{ backgroundColor: '#eef3ec', padding: 12 }}>
-            <Text style={styles.meta}>Total yardage: {totalYardageForTee(tee)}</Text>
+            <Text style={styles.meta}>Selected tee: {tee ? `${tee} Tees` : 'Choose a tee'}</Text>
+            <Text style={styles.meta}>Total yardage: {tee ? totalYardageForTee(tee) : '-'}</Text>
             <Text style={styles.meta}>
-              Rating info: {rating ? `${rating.rating} / ${rating.slope}` : 'Not posted for this tee/rating set'}
+              Rating info: {tee ? (rating ? `${rating.rating} / ${rating.slope}` : 'Not posted for this tee/rating set') : '-'}
             </Text>
           </SectionCard>
         </SectionCard>
@@ -165,7 +171,7 @@ export default function SoloStartRoundScreen() {
           </View>
         </SectionCard>
 
-        <AppButton title="Start Round" onPress={() => void handleStart()} />
+        <AppButton title="Start Round" onPress={() => void handleStart()} disabled={!tee} />
       </ScrollView>
       <PlayerBottomNav />
     </BrandWatermarkBackground>

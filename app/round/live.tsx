@@ -6,7 +6,7 @@ import { BrandWatermarkBackground } from '@/components/BrandWatermarkBackground'
 import { CoalCreekHeader } from '@/components/CoalCreekHeader';
 import { TournamentQuickNav } from '@/components/navigation/TournamentQuickNav';
 import { AppButton } from '@/components/ui/AppButton';
-import { holes as courseHoles } from '@/constants/course';
+import { holes as courseHoles, teeDisplayLabel } from '@/constants/course';
 import { SectionCard } from '@/components/ui/SectionCard';
 import { getGroupRoundLiveProgress, type GroupRoundLiveProgress } from '@/lib/groupRoundCompanions';
 import { getGroupRoundPrimaryEntryDecision } from '@/lib/groupRoundEntry';
@@ -343,7 +343,7 @@ export default function StandardRoundLiveBoardScreen() {
         <CoalCreekHeader />
         <Text style={styles.title}>{isGroup ? 'Group Live Board' : 'Round Live Board'}</Text>
         <Text style={styles.subtitle}>
-          {round ? `${round.date} / ${round.tee} / ${round.ratingType}` : 'Backend group round'}
+          {round ? `${round.date} / ${teeDisplayLabel(round.tee)} / ${round.ratingType}` : 'Backend group round'}
         </Text>
 
         {loading ? (

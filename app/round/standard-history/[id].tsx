@@ -5,6 +5,7 @@ import { PlayerBottomNav } from '@/components/navigation/PlayerBottomNav';
 import { AppButton } from '@/components/ui/AppButton';
 import { GolfCanadaSection } from '@/components/round/GolfCanadaSection';
 import { SectionCard } from '@/components/ui/SectionCard';
+import { teeDisplayLabel } from '@/constants/course';
 import { ensureGroupScoresForHole } from '@/lib/bingoBangoBongo';
 import {
   buildGolfCanadaPostedRound,
@@ -478,7 +479,7 @@ export default function StandardHistoryDetailScreen() {
             {savedRound ? (
               <SectionCard>
                 <Text style={styles.sectionTitle}>Round Summary</Text>
-                <Text style={styles.body}>{savedRound.tee} tee</Text>
+                <Text style={styles.body}>{teeDisplayLabel(savedRound.tee)}</Text>
                 <View style={styles.statGrid}>
                   <View style={styles.statCard}>
                     <Text style={styles.statValue}>{formatStat(savedRound.totalScore)}</Text>

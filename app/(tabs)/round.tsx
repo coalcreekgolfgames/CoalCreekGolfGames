@@ -5,6 +5,7 @@ import { router } from 'expo-router';
 import { BrandedScreen } from '@/components/BrandedScreen';
 import { AppButton } from '@/components/ui/AppButton';
 import { SectionCard } from '@/components/ui/SectionCard';
+import { teeDisplayLabel } from '@/constants/course';
 import { getGroupRoundPrimaryEntryDecision } from '@/lib/groupRoundEntry';
 import { getCurrentUserActiveGroupRound, getGroupRoundCompanionGameType, type ActiveGroupRoundSummary, type GroupRoundCompanionGameType } from '@/lib/groupRoundCompanions';
 import {
@@ -122,7 +123,7 @@ export default function RoundTabScreen() {
           {staleDraft && staleDraft.roundMode === 'solo' ? (
             <SectionCard>
               <Text style={styles.title}>Unfinished Solo Round</Text>
-              <Text style={styles.subtitle}>{staleDraft.date} | {staleDraft.tee} | {staleDraft.ratingType}</Text>
+              <Text style={styles.subtitle}>{staleDraft.date} | {teeDisplayLabel(staleDraft.tee)} | {staleDraft.ratingType}</Text>
               <Text style={styles.groupMeta}>
                 Saved holes: {getSavedHoleNumbers(staleDraft).join(', ') || 'none'} | Completed: {getCompletedHoleCount(staleDraft)}
               </Text>
@@ -270,7 +271,7 @@ export default function RoundTabScreen() {
       <ScrollView style={styles.container} contentContainerStyle={styles.content}>
       <SectionCard>
         <Text style={styles.title}>{isGroup ? 'Live Group Round' : 'Live Round'}</Text>
-        <Text style={styles.subtitle}>{draft.date} | {draft.tee} | {draft.ratingType}</Text>
+        <Text style={styles.subtitle}>{draft.date} | {teeDisplayLabel(draft.tee)} | {draft.ratingType}</Text>
         {isGroup && draft.group ? (
           <View style={styles.groupCard}>
             <Text style={styles.groupName}>{draft.group.groupName}</Text>

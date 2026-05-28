@@ -1,4 +1,14 @@
-import { holes as courseHoles } from '@/constants/course';
+import {
+  DEFAULT_TEE_OPTION,
+  holes as courseHoles,
+  isTeeOption,
+  ratings,
+  resolveTeeOption,
+  teeDisplayLabel,
+  teeOptions,
+  type RatingType,
+  type TeeOption,
+} from '@/constants/course';
 import { getBbbHistorySummary, type BbbHistorySummary } from '@/lib/bbbBackend';
 import {
   buildCurrentUserGolfScoresFromRoundGameSummary,
@@ -16,9 +26,11 @@ import { getNassauHistorySummary, type NassauGameSummary } from '@/lib/nassauBac
 import { getRegularRoundHistoryDetail } from '@/lib/regularRoundHistory';
 import { getSkinsHistorySummary, type SkinsHistorySummary } from '@/lib/skinsBackend';
 import { getWolfHistorySummary, type WolfGameSummary } from '@/lib/wolfBackend';
+import { supabase } from '@/lib/supabase';
 import type { SavedRound } from '@/types/round';
 
 export type StatsFilterKey = 'all' | 'last5' | 'last10' | 'last20';
+export type StatsTeeFilterKey = 'all' | TeeOption;
 
 export type PlayerStatsHole = {
   holeNumber: number;
@@ -40,6 +52,10 @@ export type PlayerStatsRound = {
   totalScore: number;
   totalPar: number;
   scoreToPar: number;
+  teeKey: TeeOption;
+  teeName: string;
+  teeLabel: string;
+  ratingType: RatingType | null;
   frontNineScore: number | null;
   backNineScore: number | null;
   totalPutts: number | null;
@@ -50,6 +66,15 @@ export type PlayerStatsRound = {
   threePutts: number | null;
   holes: PlayerStatsHole[];
   source: 'local' | 'backend';
+};
+
+export type PlayerStatsHandicapEstimate = {
+  teeKey: TeeOption;
+  teeLabel: string;
+  eligibleRoundCount: number;
+  selectedDifferentialCount: number;
+  estimatedHandicap: number | null;
+  message: string | null;
 };
 
 export type PlayerStatsLoadResult = {
@@ -159,6 +184,62 @@ function currentUserParticipantId(round: SavedRound, userId?: string | null) {
   return firstAppUser?.id ?? null;
 }
 
+function currentUserParticipant(round: SavedRound, userId?: string | null) {
+  const participantId = currentUserParticipantId(round, userId);
+  return participantId
+    ? round.group?.participants?.find((participant) => participant.id === participantId) ?? null
+    : null;
+}
+
+function resolveRoundStatsTee(params: {
+  participantSelectedTee?: unknown;
+  roundTee?: unknown;
+  ratingType?: RatingType | null;
+}) {
+  const teeKey = isTeeOption(params.participantSelectedTee)
+    ? params.participantSelectedTee
+    : resolveTeeOption(params.roundTee ?? DEFAULT_TEE_OPTION);
+
+  return {
+    teeKey,
+    teeName: teeKey,
+    teeLabel: teeDisplayLabel(teeKey),
+    ratingType: params.ratingType ?? null,
+  };
+}
+
+async function resolveBackendUserTee(params: {
+  roundId: string;
+  userId: string;
+}) {
+  const [participantRes, roundRes] = await Promise.all([
+    supabase
+      .from('round_participants')
+      .select('selected_tee')
+      .eq('round_id', params.roundId)
+      .eq('user_id', params.userId)
+      .maybeSingle(),
+    supabase
+      .from('rounds')
+      .select('tee_name')
+      .eq('id', params.roundId)
+      .maybeSingle(),
+  ]);
+
+  if (participantRes.error) {
+    console.warn('[player-stats] participant tee lookup failed', participantRes.error.message);
+  }
+  if (roundRes.error) {
+    console.warn('[player-stats] round tee lookup failed', roundRes.error.message);
+  }
+
+  return resolveRoundStatsTee({
+    participantSelectedTee: participantRes.data?.selected_tee ?? null,
+    roundTee: roundRes.data?.tee_name ?? null,
+    ratingType: null,
+  });
+}
+
 function localRoundMatchesBackendRow(round: SavedRound, row: MyRoundHistoryRow) {
   if (row.round_game_id && round.backendRoundGameId === row.round_game_id) return true;
   if (round.backendRoundId && round.backendRoundId === row.round_id) return true;
@@ -182,6 +263,10 @@ function buildStatsRoundFromHoleSet(params: {
   key: string;
   date: string;
   sortTimestamp: string;
+  teeKey: TeeOption;
+  teeName: string;
+  teeLabel: string;
+  ratingType?: RatingType | null;
   holes: PlayerStatsHole[];
   totalPutts?: number | null;
   fairwaysHit?: number | null;
@@ -190,7 +275,7 @@ function buildStatsRoundFromHoleSet(params: {
   upAndDowns?: number | null;
   source: 'backend';
 }) {
-  const { key, date, sortTimestamp, holes, totalPutts = null, fairwaysHit = null, greensInRegulation = null, penalties = null, upAndDowns = null, source } = params;
+  const { key, date, sortTimestamp, teeKey, teeName, teeLabel, ratingType = null, holes, totalPutts = null, fairwaysHit = null, greensInRegulation = null, penalties = null, upAndDowns = null, source } = params;
   if (holes.length === 0) return null;
 
   const totalScore = holes.reduce((sum, hole) => sum + hole.score, 0);
@@ -208,6 +293,10 @@ function buildStatsRoundFromHoleSet(params: {
     totalScore,
     totalPar,
     scoreToPar: totalScore - totalPar,
+    teeKey,
+    teeName,
+    teeLabel,
+    ratingType,
     frontNineScore: frontNine.length > 0 ? frontNine.reduce((sum, hole) => sum + hole.score, 0) : null,
     backNineScore: backNine.length > 0 ? backNine.reduce((sum, hole) => sum + hole.score, 0) : null,
     totalPutts,
@@ -283,8 +372,9 @@ function mapRoundGameSummaryToStatsRound(params: {
   row: MyRoundHistoryRow;
   summary: RoundGameStatsSummary;
   userId: string;
+  teeInfo: ReturnType<typeof resolveRoundStatsTee>;
 }): PlayerStatsRound | null {
-  const { row, summary, userId } = params;
+  const { row, summary, userId, teeInfo } = params;
   const scores = buildCurrentUserGolfScoresFromRoundGameSummary({
     currentUserId: userId,
     holes: buildSummaryHoles(summary),
@@ -296,6 +386,7 @@ function mapRoundGameSummaryToStatsRound(params: {
     key: `backend:${(row.roundGameId ?? row.round_game_id) || (row.roundId ?? row.round_id)}`,
     date: row.round_date ?? 'Unknown',
     sortTimestamp: row.round_date ?? row.updated_at ?? row.created_at ?? (row.roundId ?? row.round_id),
+    ...teeInfo,
     holes,
     source: 'backend',
   });
@@ -313,6 +404,7 @@ function mapRoundGameSummaryToStatsRound(params: {
       hasScorecard: holes.length > 0,
       holeCount: holes.length,
       scoreTotal: result?.totalScore ?? 0,
+      teeKey: result?.teeKey ?? null,
       hasOptionalStats: false,
       included: !!result,
       skipReason: result ? null : 'no_current_user_scorecard_in_summary',
@@ -324,6 +416,12 @@ function mapRoundGameSummaryToStatsRound(params: {
 
 function mapLocalRoundToStatsRound(round: SavedRound, userId?: string | null): PlayerStatsRound | null {
   const participantId = currentUserParticipantId(round, userId);
+  const participant = currentUserParticipant(round, userId);
+  const teeInfo = resolveRoundStatsTee({
+    participantSelectedTee: participant?.selectedTee ?? null,
+    roundTee: round.tee,
+    ratingType: round.ratingType,
+  });
   const holes = round.holes
     .map((hole) => {
       const courseHole = courseHoles.find((entry) => entry.hole === hole.hole);
@@ -372,6 +470,7 @@ function mapLocalRoundToStatsRound(round: SavedRound, userId?: string | null): P
     totalScore,
     totalPar,
     scoreToPar: totalScore - totalPar,
+    ...teeInfo,
     frontNineScore: frontNine.length > 0 ? frontNine.reduce((sum, hole) => sum + hole.score, 0) : null,
     backNineScore: backNine.length > 0 ? backNine.reduce((sum, hole) => sum + hole.score, 0) : null,
     totalPutts: round.statsEnabled === false ? null : round.totalPutts,
@@ -390,6 +489,7 @@ async function mapBackendRowToStatsRound(row: MyRoundHistoryRow, userId: string)
   if (!roundId) return null;
 
   let detailError: unknown = null;
+  const backendTeeInfo = await resolveBackendUserTee({ roundId, userId });
 
   try {
     const detail = await getRegularRoundHistoryDetail({
@@ -426,6 +526,11 @@ async function mapBackendRowToStatsRound(row: MyRoundHistoryRow, userId: string)
       key: `backend:${detail.roundGameId ?? detail.roundId}`,
       date: detail.roundDate ?? 'Unknown',
       sortTimestamp: detail.roundDate ?? row.updated_at ?? row.created_at ?? detail.roundId,
+      ...resolveRoundStatsTee({
+        participantSelectedTee: backendTeeInfo.teeKey,
+        roundTee: detail.backendDetail.teeName ?? backendTeeInfo.teeKey,
+        ratingType: null,
+      }),
       holes,
       totalPutts: detail.personalStatsSummary?.totalPutts ?? null,
       fairwaysHit: detail.personalStatsSummary?.fairwaysHit ?? null,
@@ -448,6 +553,7 @@ async function mapBackendRowToStatsRound(row: MyRoundHistoryRow, userId: string)
         hasScorecard: holes.length > 0,
         holeCount: holes.length,
         scoreTotal: detailResult?.totalScore ?? 0,
+        teeKey: detailResult?.teeKey ?? null,
         hasOptionalStats: !!detail.personalStatsSummary,
         included: !!detailResult,
         skipReason: detailResult ? null : 'regular_detail_missing_current_user_scores',
@@ -465,6 +571,7 @@ async function mapBackendRowToStatsRound(row: MyRoundHistoryRow, userId: string)
       row,
       summary,
       userId,
+      teeInfo: backendTeeInfo,
     });
     if (summaryResult) return summaryResult;
   }
@@ -555,6 +662,102 @@ export function filterStatsRounds(rounds: PlayerStatsRound[], filter: StatsFilte
   if (filter === 'last10') return rounds.slice(0, 10);
   if (filter === 'last20') return rounds.slice(0, 20);
   return rounds;
+}
+
+export function filterStatsRoundsByTee(rounds: PlayerStatsRound[], teeFilter: StatsTeeFilterKey) {
+  if (teeFilter === 'all') return rounds;
+  return rounds.filter((round) => round.teeKey === teeFilter);
+}
+
+export function availableStatsTeeFilters(rounds: PlayerStatsRound[]) {
+  void rounds;
+  return [...teeOptions];
+}
+
+function handicapDifferentialCount(roundCount: number) {
+  if (roundCount < 3) return 0;
+  if (roundCount <= 5) return 1;
+  if (roundCount <= 8) return 2;
+  if (roundCount <= 11) return 3;
+  if (roundCount <= 14) return 4;
+  if (roundCount <= 16) return 5;
+  if (roundCount <= 18) return 6;
+  if (roundCount === 19) return 7;
+  return 8;
+}
+
+function ratingInfoForStatsRound(round: PlayerStatsRound) {
+  const ratingRow = ratings[round.teeKey];
+  const ratingType = round.ratingType && round.ratingType in ratingRow
+    ? round.ratingType
+    : 'men' in ratingRow
+      ? 'men'
+      : 'women' in ratingRow
+        ? 'women'
+        : null;
+  if (!ratingType) return null;
+  return ratingRow[ratingType as keyof typeof ratingRow] as { rating: number; slope: number } | undefined;
+}
+
+export function estimateHandicapForStatsRounds(
+  rounds: PlayerStatsRound[],
+  teeFilter: StatsTeeFilterKey,
+): PlayerStatsHandicapEstimate {
+  const targetRounds = teeFilter === 'all' ? rounds : rounds.filter((round) => round.teeKey === teeFilter);
+  const teeKey = teeFilter === 'all' ? DEFAULT_TEE_OPTION : teeFilter;
+  const teeLabel = teeFilter === 'all' ? 'All Tees' : teeDisplayLabel(teeFilter);
+
+  const eligibleRounds = targetRounds
+    .slice(0, 20)
+    .map((round) => {
+      const ratingInfo = ratingInfoForStatsRound(round);
+      if (!ratingInfo || typeof ratingInfo.rating !== 'number' || typeof ratingInfo.slope !== 'number' || ratingInfo.slope <= 0) {
+        return null;
+      }
+      return {
+        round,
+        differential: ((round.totalScore - ratingInfo.rating) * 113) / ratingInfo.slope,
+      };
+    })
+    .filter(isDefined);
+
+  const missingRatingRound = targetRounds.find((round) => !ratingInfoForStatsRound(round));
+  if (targetRounds.length > 0 && eligibleRounds.length === 0 && missingRatingRound) {
+    return {
+      teeKey,
+      teeLabel,
+      eligibleRoundCount: 0,
+      selectedDifferentialCount: 0,
+      estimatedHandicap: null,
+      message: `Handicap estimate unavailable for ${teeDisplayLabel(missingRatingRound.teeKey)} because rating/slope is missing.`,
+    };
+  }
+
+  const selectedCount = handicapDifferentialCount(eligibleRounds.length);
+  if (selectedCount === 0) {
+    return {
+      teeKey,
+      teeLabel,
+      eligibleRoundCount: eligibleRounds.length,
+      selectedDifferentialCount: 0,
+      estimatedHandicap: null,
+      message: 'Not enough eligible rounds for an estimated handicap. At least 3 rounds with rating/slope are needed.',
+    };
+  }
+
+  const selectedDifferentials = eligibleRounds
+    .map((entry) => entry.differential)
+    .sort((a, b) => a - b)
+    .slice(0, selectedCount);
+
+  return {
+    teeKey,
+    teeLabel,
+    eligibleRoundCount: eligibleRounds.length,
+    selectedDifferentialCount: selectedDifferentials.length,
+    estimatedHandicap: average(selectedDifferentials),
+    message: 'Estimated from gross score differentials. Adjusted gross score limits are not applied yet.',
+  };
 }
 
 export function summarizePlayerStats(rounds: PlayerStatsRound[]): PlayerStatsSummary | null {

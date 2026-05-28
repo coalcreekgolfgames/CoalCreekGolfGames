@@ -30,7 +30,7 @@ import {
   resetTournamentRound,
   retryPendingTournamentHoleSyncs,
 } from '@/lib/tournamentRoundSync';
-import { holes as courseHoles } from '@/constants/course';
+import { holes as courseHoles, teeOptions, type TeeOption } from '@/constants/course';
 
 function parThroughHole(lastHoleEntered: number | null | undefined) {
   const thru = Number(lastHoleEntered ?? 0);
@@ -119,6 +119,7 @@ export default function TournamentYardageScreen() {
   const [retryingSync, setRetryingSync] = useState(false);
   const [statsEnabledChoice, setStatsEnabledChoice] = useState(true);
   const [syncMessage, setSyncMessage] = useState<string | null>(null);
+  const [selectedTee, setSelectedTee] = useState<TeeOption | null>(null);
 
   const load = useCallback(async () => {
     if (!user?.id || !id) {
@@ -262,6 +263,10 @@ export default function TournamentYardageScreen() {
 
       const formatType = item?.format_type ?? 'individual_stroke_play';
       const statsEnabled = supportsTournamentStatsChoice(formatType) ? statsEnabledChoice : false;
+      if (!selectedTee) {
+        Alert.alert('Choose a tee', 'Select the tee set you are playing before starting the tournament round.');
+        return;
+      }
 
       const draft = await createTournamentDraftRound({
         userId: user.id,
@@ -278,6 +283,8 @@ export default function TournamentYardageScreen() {
         unlimitedRoundsAllowed: item.unlimited_rounds_allowed ?? null,
         bestRoundsCount: item.best_rounds_count ?? null,
         specialHoleRules: item.special_hole_rules ?? [],
+        tee: selectedTee,
+        ratingType: 'men',
       });
 
       if (isTeamTournamentFormat(formatType) && !draft.tournamentTeamId) {
@@ -541,6 +548,25 @@ export default function TournamentYardageScreen() {
           </View>
         ) : null}
 
+        {!hasTournamentDraft && !matchPlayFormat ? (
+          <View style={styles.statsChoiceCard}>
+            <Text style={styles.metricLabel}>Tee</Text>
+            <Text style={styles.statsChoiceText}>Choose the tee you are playing for this tournament round.</Text>
+            <View style={styles.teeChoiceRow}>
+              {teeOptions.map((option) => (
+                <AppButton
+                  key={option}
+                  title={option}
+                  onPress={() => setSelectedTee(option)}
+                  variant={selectedTee === option ? 'primary' : 'secondary'}
+                  compact
+                  style={styles.teeChoiceButton}
+                />
+              ))}
+            </View>
+          </View>
+        ) : null}
+
         <View style={styles.syncCard}>
           <Text style={styles.metricLabel}>Sync Status</Text>
           <Text style={styles.statsChoiceText}>
@@ -568,7 +594,7 @@ export default function TournamentYardageScreen() {
           <AppButton
             title={matchPlayFormat ? (isBracketTournamentFormat(formatType) ? 'Match Play Bracket Coming Soon' : 'Open Match Screen') : startingRound ? 'Opening…' : (hasTournamentDraft ? 'Resume Tournament Round' : 'Start Tournament Round')}
             onPress={openOrCreateRound}
-            disabled={startingRound || resettingRound || matchPlayFormat}
+            disabled={startingRound || resettingRound || matchPlayFormat || (!hasTournamentDraft && !selectedTee)}
           />
           <AppButton
             title={resettingRound ? 'Resetting…' : 'Reset Tournament Round'}
@@ -649,6 +675,8 @@ const styles = StyleSheet.create({
   matchPlayMeta: { fontSize: 13, color: '#18341d', fontWeight: '700' },
   statsChoiceText: { fontSize: 14, color: '#425247', lineHeight: 20 },
   statsChoiceRow: { flexDirection: 'row', gap: 10 },
+  teeChoiceRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
+  teeChoiceButton: { minWidth: 96 },
   syncError: { fontSize: 13, lineHeight: 18, color: '#7b3e33' },
   syncMessage: { fontSize: 13, lineHeight: 18, color: '#18341d', marginTop: 10 },
   buttonStack: { gap: 12, marginTop: 16 },

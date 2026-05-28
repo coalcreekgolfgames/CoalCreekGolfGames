@@ -7,6 +7,7 @@ export type GroupParticipant = {
   lastName: string;
   displayName: string;
   isScorekeeper?: boolean;
+  selectedTee?: TeeOption | null;
 };
 
 export type GroupGameMode = 'none' | 'bingo_bango_bongo' | 'skins' | 'nassau' | 'wolf';

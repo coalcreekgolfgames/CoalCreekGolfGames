@@ -10,6 +10,25 @@ export type TeeOption = (typeof teeOptions)[number];
 
 export type RatingType = "men" | "women";
 
+export const DEFAULT_TEE_OPTION: TeeOption = "Silver";
+
+export function isTeeOption(value: unknown): value is TeeOption {
+  return typeof value === "string" && teeOptions.includes(value as TeeOption);
+}
+
+export function resolveTeeOption(value: unknown): TeeOption {
+  return isTeeOption(value) ? value : DEFAULT_TEE_OPTION;
+}
+
+export function teeDisplayLabel(value: unknown) {
+  const tee = resolveTeeOption(value);
+  return isTeeOption(value) ? `${tee} Tees` : `${tee} Tees (default)`;
+}
+
+export function yardageForHoleAndTee(hole: { yards: Partial<Record<TeeOption, number>> }, tee: unknown) {
+  return hole.yards[resolveTeeOption(tee)] ?? hole.yards[DEFAULT_TEE_OPTION] ?? 0;
+}
+
 export const ratings = {
   "Black": {
     "men": {

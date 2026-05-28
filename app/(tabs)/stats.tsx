@@ -4,10 +4,14 @@ import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { BrandedScreen } from '@/components/BrandedScreen';
 import { SectionCard } from '@/components/ui/SectionCard';
 import {
+  availableStatsTeeFilters,
   filterStatsRounds,
+  filterStatsRoundsByTee,
+  estimateHandicapForStatsRounds,
   loadPlayerStatsRounds,
   summarizePlayerStats,
   type StatsFilterKey,
+  type StatsTeeFilterKey,
 } from '@/lib/playerStats';
 import { useAuth } from '@/providers/AuthProvider';
 
@@ -16,6 +20,7 @@ export default function StatsScreen() {
   const [rounds, setRounds] = useState<Awaited<ReturnType<typeof loadPlayerStatsRounds>>['rounds']>([]);
   const [backendError, setBackendError] = useState<string | null>(null);
   const [selectedFilter, setSelectedFilter] = useState<StatsFilterKey>('all');
+  const [selectedTeeFilter, setSelectedTeeFilter] = useState<StatsTeeFilterKey>('all');
 
   useEffect(() => {
     let active = true;
@@ -32,8 +37,18 @@ export default function StatsScreen() {
     };
   }, [user?.id]);
 
-  const filteredRounds = useMemo(() => filterStatsRounds(rounds, selectedFilter), [rounds, selectedFilter]);
+  const timeFilteredRounds = useMemo(() => filterStatsRounds(rounds, selectedFilter), [rounds, selectedFilter]);
+  const filteredRounds = useMemo(() => filterStatsRoundsByTee(timeFilteredRounds, selectedTeeFilter), [selectedTeeFilter, timeFilteredRounds]);
   const stats = useMemo(() => summarizePlayerStats(filteredRounds), [filteredRounds]);
+  const teeFilters = useMemo(() => availableStatsTeeFilters(rounds), [rounds]);
+  const handicapEstimate = useMemo(
+    () => estimateHandicapForStatsRounds(filteredRounds, selectedTeeFilter),
+    [filteredRounds, selectedTeeFilter],
+  );
+  const teeBreakdown = useMemo(() => teeFilters.map((tee) => ({
+    tee,
+    rounds: timeFilteredRounds.filter((round) => round.teeKey === tee),
+  })).filter((entry) => entry.rounds.length > 0), [teeFilters, timeFilteredRounds]);
 
   const filters: Array<{ key: StatsFilterKey; label: string }> = [
     { key: 'all', label: 'All Time' },
@@ -51,6 +66,11 @@ export default function StatsScreen() {
     if (typeof value !== 'number' || !Number.isFinite(value)) return '--';
     return `${value.toFixed(1)}%`;
   };
+
+  const emptyTitle = rounds.length > 0 ? 'No rounds match these filters' : 'No completed rounds yet';
+  const emptyBody = rounds.length > 0
+    ? 'Try All Time or All Tees to include more completed rounds.'
+    : 'Finish and save a round in History, then personal stats will appear here.';
 
   const StatCard = ({ label, value, helper }: { label: string; value: string; helper?: string }) => (
     <View style={styles.card}>
@@ -87,6 +107,24 @@ export default function StatsScreen() {
           ))}
         </View>
 
+        <View style={styles.filterRow}>
+          {[{ key: 'all' as const, label: 'All Tees' }, ...teeFilters.map((tee) => ({ key: tee, label: tee }))].map((filter) => (
+            <Pressable
+              key={filter.key}
+              onPress={() => setSelectedTeeFilter(filter.key)}
+              style={({ pressed }) => [
+                styles.filterChip,
+                selectedTeeFilter === filter.key ? styles.filterChipActive : null,
+                pressed ? styles.filterChipPressed : null,
+              ]}
+            >
+              <Text style={[styles.filterText, selectedTeeFilter === filter.key ? styles.filterTextActive : null]}>
+                {filter.label}
+              </Text>
+            </Pressable>
+          ))}
+        </View>
+
         {stats ? (
           <>
             <SectionCard>
@@ -94,12 +132,47 @@ export default function StatsScreen() {
               <View style={styles.cardGrid}>
                 <StatCard label="Rounds" value={`${stats.roundsPlayed}`} />
                 <StatCard label="Handicap" value={formatNumber(profile?.handicap ?? null)} />
+                <StatCard label="Estimated Handicap" value={formatNumber(handicapEstimate.estimatedHandicap)} helper={handicapEstimate.message ?? undefined} />
                 <StatCard label="Scoring Avg" value={formatNumber(stats.scoringAverage)} />
                 <StatCard label="Best Round" value={`${stats.bestRound}`} />
                 <StatCard label="Avg To Par" value={formatNumber(stats.averageScoreToPar)} />
                 <StatCard label="Worst Round" value={`${stats.worstRound}`} />
                 <StatCard label="Front 9 Avg" value={formatNumber(stats.averageFrontNine)} />
                 <StatCard label="Back 9 Avg" value={formatNumber(stats.averageBackNine)} />
+              </View>
+            </SectionCard>
+
+            <SectionCard>
+              <Text style={styles.sectionTitle}>Tee Breakdown</Text>
+              <View style={styles.cardGrid}>
+                {teeBreakdown.map((entry) => {
+                  const teeStats = summarizePlayerStats(entry.rounds);
+                  return (
+                    <StatCard
+                      key={entry.tee}
+                      label={`${entry.tee} Tees`}
+                      value={teeStats ? formatNumber(teeStats.scoringAverage) : '--'}
+                      helper={`${entry.rounds.length} round${entry.rounds.length === 1 ? '' : 's'}`}
+                    />
+                  );
+                })}
+              </View>
+            </SectionCard>
+
+            <SectionCard>
+              <Text style={styles.sectionTitle}>Handicap By Tee</Text>
+              <View style={styles.cardGrid}>
+                {(selectedTeeFilter === 'all' ? teeBreakdown : [{ tee: selectedTeeFilter, rounds: filteredRounds }]).map((entry) => {
+                  const estimate = estimateHandicapForStatsRounds(entry.rounds, entry.tee);
+                  return (
+                    <StatCard
+                      key={`handicap-${entry.tee}`}
+                      label={`${entry.tee} Tees`}
+                      value={formatNumber(estimate.estimatedHandicap)}
+                      helper={estimate.message ?? undefined}
+                    />
+                  );
+                })}
               </View>
             </SectionCard>
 
@@ -160,8 +233,8 @@ export default function StatsScreen() {
           </>
         ) : (
           <SectionCard>
-            <Text style={styles.emptyTitle}>No completed rounds yet</Text>
-            <Text style={styles.emptyBody}>Finish and save a round in History, then personal stats will appear here.</Text>
+            <Text style={styles.emptyTitle}>{emptyTitle}</Text>
+            <Text style={styles.emptyBody}>{emptyBody}</Text>
           </SectionCard>
         )}
 

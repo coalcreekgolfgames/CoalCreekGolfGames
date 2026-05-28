@@ -19,6 +19,7 @@ import { getSkinsHistorySummary } from '@/lib/skinsBackend';
 import { getStandardRoundBackendDetail } from '@/lib/standardRoundBackend';
 import { getTournamentMatchGolfCanadaPrep, markTournamentMatchGolfCanadaPosted } from '@/lib/tournaments';
 import { getWolfHistorySummary } from '@/lib/wolfBackend';
+import { DEFAULT_TEE_OPTION, resolveTeeOption } from '@/constants/course';
 import { useAuth } from '@/providers/AuthProvider';
 import type { SavedRound } from '@/types/round';
 
@@ -196,7 +197,7 @@ export default function GolfCanadaWebViewHelperScreen() {
             id: backendRoundId,
             draftOwnerUserId: user.id,
             date: regularDetail?.roundDate ?? new Date().toISOString().slice(0, 10),
-            tee: (regularDetail?.backendDetail.teeName ?? 'Blue') as any,
+            tee: resolveTeeOption(regularDetail?.backendDetail.teeName ?? DEFAULT_TEE_OPTION),
             ratingType: 'middle',
             currentHole: 18,
             holes: [],
@@ -240,7 +241,7 @@ export default function GolfCanadaWebViewHelperScreen() {
             id: summary?.round_id ?? backendRoundGameId!,
             draftOwnerUserId: user.id,
             date: new Date().toISOString().slice(0, 10),
-            tee: 'Blue',
+            tee: DEFAULT_TEE_OPTION,
             ratingType: 'middle',
             currentHole: 18,
             holes: [],
@@ -290,7 +291,7 @@ export default function GolfCanadaWebViewHelperScreen() {
             id: summary?.round_id ?? backendRoundGameId,
             draftOwnerUserId: user.id,
             date: new Date().toISOString().slice(0, 10),
-            tee: 'Blue',
+            tee: DEFAULT_TEE_OPTION,
             ratingType: 'middle',
             currentHole: 18,
             holes: [],
@@ -340,7 +341,7 @@ export default function GolfCanadaWebViewHelperScreen() {
             id: summary?.round_id ?? backendRoundGameId,
             draftOwnerUserId: user.id,
             date: new Date().toISOString().slice(0, 10),
-            tee: 'Blue',
+            tee: DEFAULT_TEE_OPTION,
             ratingType: 'middle',
             currentHole: 18,
             holes: [],
@@ -389,7 +390,7 @@ export default function GolfCanadaWebViewHelperScreen() {
           id: detail.roundId,
           draftOwnerUserId: user.id,
           date: detail.roundDate ?? new Date().toISOString().slice(0, 10),
-          tee: (detail.teeName ?? 'Blue') as any,
+          tee: resolveTeeOption(detail.teeName ?? DEFAULT_TEE_OPTION),
           ratingType: 'middle' as any,
           currentHole: Math.max(1, detail.holeCount || 1),
           holes: scores.map((entry) => ({ hole: entry.hole, score: entry.score })),

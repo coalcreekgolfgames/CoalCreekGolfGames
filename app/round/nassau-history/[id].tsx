@@ -6,6 +6,7 @@ import { PlayerBottomNav } from '@/components/navigation/PlayerBottomNav';
 import { GolfCanadaSection } from '@/components/round/GolfCanadaSection';
 import { SectionCard } from '@/components/ui/SectionCard';
 import { SettlementBreakdown } from '@/components/round/SettlementBreakdown';
+import { DEFAULT_TEE_OPTION, resolveTeeOption } from '@/constants/course';
 import { formatCurrencyFromCents } from '@/lib/currency';
 import {
   buildGolfCanadaPostingPrepFromRoundGameSummary,
@@ -196,7 +197,7 @@ export default function NassauHistoryDetailScreen() {
       id: backendRoundId,
       draftOwnerUserId: user?.id ?? null,
       date: historyMeta ? historyDateFromBackendRow(historyMeta) : (regularDetail?.roundDate ?? new Date().toISOString().slice(0, 10)),
-      tee: (regularDetail?.backendDetail.teeName ?? 'Blue') as any,
+      tee: resolveTeeOption(regularDetail?.backendDetail.teeName ?? DEFAULT_TEE_OPTION),
       ratingType: 'middle' as any,
       currentHole: 18,
       holes: [],

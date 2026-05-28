@@ -1255,6 +1255,10 @@ function buildMatchStatusLabel(params: {
   status?: string | null
   winnerParticipantId?: string | null
 }) {
+  if (params.finalResultLabel === 'Match Halved' || (params.status ?? '').toLowerCase() === 'tied') {
+    return 'Match Halved'
+  }
+
   if (params.finalResultLabel && params.winnerParticipantId) {
     const winnerName =
       params.winnerParticipantId === params.playerAParticipantId
@@ -1373,15 +1377,6 @@ function applySavedHoleStateToMatchSummary(
   const scorecardComplete = savedHoleCount >= 18
   const lastSavedHole = holes.length > 0 ? holes[holes.length - 1] : null
   const finishedAt = scorecardComplete ? (lastSavedHole?.updatedAt ?? match.updatedAt ?? null) : null
-  const officialMatchComplete = Boolean(
-    match.finalResultLabel
-    || match.winnerParticipantId
-    || match.status === 'complete'
-    || match.status === 'tied',
-  )
-  const decisiveHoleNumber = officialMatchComplete
-    ? Math.max(1, 18 - Math.max(0, Number(match.holesRemaining ?? 0)))
-    : null
   const courseDefinitions = buildDefaultMatchPlayHoleDefinitions()
   const savedHoleByNumber = new Map(holes.map((hole) => [hole.holeNumber, hole]))
   const scorecard = scoreMatchPlayCard({
@@ -1411,20 +1406,11 @@ function applySavedHoleStateToMatchSummary(
     !scorecard.status.complete && scorecard.status.completedHoles > 0
       ? `${scorecard.status.statusLabel} thru ${scorecard.status.completedHoles}`
       : scorecard.status.statusLabel
+  const decisiveHoleNumber = scorecard.status.complete
+    ? Math.max(1, 18 - scorecard.status.holesRemaining)
+    : null
 
-  if (officialMatchComplete) {
-    const officialStatusLabel = buildMatchStatusLabel({
-      playerAName: match.playerA?.displayName ?? 'Player A',
-      playerBName: match.playerB?.displayName ?? 'Player B',
-      leaderParticipantId: match.currentLeaderParticipantId ?? null,
-      playerAParticipantId: match.playerA?.participantId ?? null,
-      playerBParticipantId: match.playerB?.participantId ?? null,
-      margin: match.currentMargin ?? null,
-      holesRemaining: match.holesRemaining ?? null,
-      finalResultLabel: match.finalResultLabel ?? null,
-      status: match.status ?? null,
-      winnerParticipantId: match.winnerParticipantId ?? null,
-    })
+  if (scorecard.status.complete) {
     const progressSuffix =
       savedHoleCount >= 18
         ? ' · Scorecard complete'
@@ -1434,13 +1420,29 @@ function applySavedHoleStateToMatchSummary(
 
     return {
       ...match,
+      status: scorecard.status.winner ? 'complete' : 'tied',
+      currentLeaderParticipantId:
+        scorecard.status.leader === 'a'
+          ? match.playerA?.participantId ?? null
+          : scorecard.status.leader === 'b'
+            ? match.playerB?.participantId ?? null
+            : null,
+      currentMargin: Math.abs(scorecard.status.margin),
+      holesRemaining: scorecard.status.holesRemaining,
+      finalResultLabel: scorecard.status.finalResultLabel,
+      winnerParticipantId:
+        scorecard.status.winner === 'a'
+          ? match.playerA?.participantId ?? null
+          : scorecard.status.winner === 'b'
+            ? match.playerB?.participantId ?? null
+            : null,
       savedHoleCount,
       scorecardSavedHoleCount: savedHoleCount,
       decisiveHoleNumber,
       officialMatchComplete: true,
       scorecardComplete,
       finishedAt,
-      currentStatusLabel: `${officialStatusLabel}${progressSuffix}`,
+      currentStatusLabel: `${scorecard.status.statusLabel}${progressSuffix}`,
     }
   }
 

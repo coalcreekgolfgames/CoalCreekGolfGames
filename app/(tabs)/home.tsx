@@ -8,9 +8,11 @@ import { CoalCreekHeader } from '@/components/CoalCreekHeader';
 import { AppButton } from '@/components/ui/AppButton';
 import {
   backNineYardageForTee,
+  DEFAULT_TEE_OPTION,
   frontNineYardageForTee,
   holes,
   ratings,
+  teeDisplayLabel,
   teeOptions,
   totalYardageForTee,
   type TeeOption,
@@ -75,7 +77,7 @@ export default function HomeScreen() {
   const [activeMatchNotifications, setActiveMatchNotifications] = useState<CurrentUserMatchPlayNotification[]>([]);
   const [completedMatchPlayTournamentIds, setCompletedMatchPlayTournamentIds] = useState<string[]>([]);
   const [yardageModalVisible, setYardageModalVisible] = useState(false);
-  const [selectedTee, setSelectedTee] = useState<TeeOption>('Silver');
+  const [selectedTee, setSelectedTee] = useState<TeeOption>(DEFAULT_TEE_OPTION);
 
   useFocusEffect(React.useCallback(() => {
     let active = true;
@@ -477,7 +479,7 @@ export default function HomeScreen() {
                   <View style={styles.recentRoundRow}>
                     <Text style={styles.recentRoundLabel}>Recent</Text>
                     <Text style={styles.recentRoundInline}>
-                      {recentRound.date} - {recentRound.tee} - {recentRound.totalScore}
+                      {recentRound.date} - {teeDisplayLabel(recentRound.tee)} - {recentRound.totalScore}
                     </Text>
                   </View>
                 ) : (

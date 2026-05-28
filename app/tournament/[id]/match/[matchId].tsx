@@ -1,7 +1,8 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react'
-import { ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native'
+import { ActivityIndicator, Alert, Image, Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native'
 import { useFocusEffect } from '@react-navigation/native'
 import { useLocalSearchParams, useRouter } from 'expo-router'
+import MaterialIcons from '@expo/vector-icons/MaterialIcons'
 import { BrandedScreen } from '@/components/BrandedScreen'
 import { PlayerBottomNav } from '@/components/navigation/PlayerBottomNav'
 import { GolfCanadaSection } from '@/components/round/GolfCanadaSection'
@@ -26,8 +27,10 @@ import {
   buildDefaultMatchPlayHoleDefinitions,
   scoreMatchPlayCard,
 } from '@/lib/tournaments/matchPlay'
+import { holeImages } from '@/constants/holeImages'
 
 type SaveStatus = 'idle' | 'saving' | 'saved'
+type HoleImageMode = 'fairway' | 'green'
 
 function isSavedScoredHole(hole: Pick<TournamentMatchHoleRecord, 'holeNumber' | 'playerAGross' | 'playerBGross'> | null | undefined) {
   return !!hole
@@ -66,6 +69,8 @@ export default function TournamentMatchScoringScreen() {
   const [postingBusy, setPostingBusy] = useState(false)
   const [golfCanadaPrep, setGolfCanadaPrep] = useState<GolfCanadaPostingPrep | null>(null)
   const [golfCanadaPostingState, setGolfCanadaPostingState] = useState<GolfCanadaPostingRecord | null>(null)
+  const [imageMode, setImageMode] = useState<HoleImageMode>('fairway')
+  const [previewImageMode, setPreviewImageMode] = useState<HoleImageMode | null>(null)
 
   const holeDefinitions = useMemo(() => buildDefaultMatchPlayHoleDefinitions(), [])
   const parsedRouteHole = useMemo(() => {
@@ -520,6 +525,20 @@ export default function TournamentMatchScoringScreen() {
           </View>
         </SectionCard>
 
+        <View style={styles.imageToolbar}>
+          <AppButton title="Fairway" onPress={() => setImageMode('fairway')} variant={imageMode === 'fairway' ? 'primary' : 'secondary'} style={{ flex: 1 }} />
+          <AppButton title="Green" onPress={() => setImageMode('green')} variant={imageMode === 'green' ? 'primary' : 'secondary'} style={{ flex: 1 }} />
+        </View>
+
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={`Preview ${imageMode} image`}
+          onPress={() => setPreviewImageMode(imageMode)}
+          style={({ pressed }) => [styles.mainImageButton, pressed ? styles.mainImageButtonPressed : null]}
+        >
+          <Image source={holeImages[currentHole][imageMode]} resizeMode="cover" style={styles.mainImage} />
+        </Pressable>
+
         <SectionCard>
           <Text style={styles.sectionTitle}>Hole {currentHole}</Text>
           <Text style={styles.subtitle}>
@@ -685,6 +704,42 @@ export default function TournamentMatchScoringScreen() {
         </SectionCard>
       </ScrollView>
       <PlayerBottomNav />
+      <Modal
+        visible={previewImageMode !== null}
+        transparent
+        animationType="fade"
+        statusBarTranslucent
+        onRequestClose={() => setPreviewImageMode(null)}
+      >
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Close image preview"
+          style={styles.imagePreviewBackdrop}
+          onPress={() => setPreviewImageMode(null)}
+        >
+          <Pressable style={styles.imagePreviewContent} onPress={(event) => event.stopPropagation()}>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Close image preview"
+              hitSlop={10}
+              onPress={() => setPreviewImageMode(null)}
+              style={styles.imagePreviewCloseButton}
+            >
+              <MaterialIcons name="close" size={24} color="#fffdf8" />
+            </Pressable>
+            {previewImageMode ? (
+              <Image
+                source={holeImages[currentHole][previewImageMode]}
+                resizeMode="contain"
+                style={[
+                  styles.imagePreviewImage,
+                  previewImageMode === 'green' ? styles.greenPreviewImage : null,
+                ]}
+              />
+            ) : null}
+          </Pressable>
+        </Pressable>
+      </Modal>
     </BrandedScreen>
   )
 }
@@ -703,6 +758,42 @@ const styles = StyleSheet.create({
   statusLabel: { fontSize: 11, fontWeight: '800', letterSpacing: 1.0, textTransform: 'uppercase', color: '#8b8a84' },
   statusValue: { fontSize: 16, fontWeight: '800', color: '#132117', marginTop: 6 },
   modeRow: { flexDirection: 'row', gap: 10, marginTop: 14 },
+  imageToolbar: { flexDirection: 'row', gap: 10 },
+  mainImageButton: { width: '100%', height: 280, borderRadius: 18, overflow: 'hidden' },
+  mainImageButtonPressed: { opacity: 0.92 },
+  mainImage: { width: '100%', height: 280, borderRadius: 18 },
+  imagePreviewBackdrop: {
+    flex: 1,
+    backgroundColor: 'rgba(8, 14, 10, 0.88)',
+    paddingHorizontal: 16,
+    paddingVertical: 44,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  imagePreviewContent: {
+    width: '100%',
+    height: '82%',
+    justifyContent: 'center',
+  },
+  imagePreviewImage: {
+    width: '100%',
+    height: '100%',
+  },
+  greenPreviewImage: {
+    transform: [{ scale: 1.5 }],
+  },
+  imagePreviewCloseButton: {
+    position: 'absolute',
+    top: -6,
+    right: 0,
+    zIndex: 2,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: 'rgba(19, 33, 23, 0.82)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   holeMeta: { fontSize: 14, color: '#5a6b61', marginTop: 6, lineHeight: 20 },
   warningText: { fontSize: 13, lineHeight: 18, color: '#7b3e33', marginTop: 10 },
   scoreSection: { gap: 12, marginTop: 14 },

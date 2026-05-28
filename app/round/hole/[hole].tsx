@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Alert, AppState, Image, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Alert, AppState, Image, Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { router, useLocalSearchParams } from 'expo-router';
@@ -10,7 +10,7 @@ import { AppButton } from '@/components/ui/AppButton';
 import { PlayerBottomNav } from '@/components/navigation/PlayerBottomNav';
 import { RoundHeader } from '@/components/round/RoundHeader';
 import { SectionCard } from '@/components/ui/SectionCard';
-import { holes } from '@/constants/course';
+import { holes, teeDisplayLabel, yardageForHoleAndTee } from '@/constants/course';
 import { holeImages } from '@/constants/holeImages';
 import {
   bbbWinnerLabel,
@@ -86,6 +86,8 @@ type StepKey =
   | 'opponentScore'
   | 'putts'
   | 'save';
+
+type HoleImageMode = 'fairway' | 'green';
 
 type HoleSaveStatus = 'idle' | 'saving' | 'saved';
 
@@ -176,7 +178,8 @@ export default function HoleEditorScreen() {
   const holeNumber = Number(params.hole ?? '1');
   const { user, loading: authLoading } = useAuth();
   const [round, setRound] = useState<LocalRoundDraft | null>(null);
-  const [imageMode, setImageMode] = useState<'fairway' | 'green'>('fairway');
+  const [imageMode, setImageMode] = useState<HoleImageMode>('fairway');
+  const [previewImageMode, setPreviewImageMode] = useState<HoleImageMode | null>(null);
   const [stepIndex, setStepIndex] = useState(0);
   const [syncMessage, setSyncMessage] = useState<string | null>(null);
   const [deletingHole, setDeletingHole] = useState(false);
@@ -1587,6 +1590,8 @@ export default function HoleEditorScreen() {
   };
 
   const isGroup = round.roundMode === 'casual_group';
+  const selectedTeeLabel = teeDisplayLabel(round.tee);
+  const selectedHoleYardage = yardageForHoleAndTee(courseHole, round.tee);
   const hasSavedHole = bbbRound
     ? bbbHoleScores.some((entry) => scoreComplete(entry.score)) || !!state.bingoWinnerId || !!state.bangoWinnerId || !!state.bongoWinnerId
     : skinsRound
@@ -1600,8 +1605,8 @@ export default function HoleEditorScreen() {
         <View style={styles.content}>
         <RoundHeader
           title={`Hole ${holeNumber}`}
-          subtitle={`Par ${courseHole.par} · HCP ${courseHole.hcp} · ${courseHole.yards[round.tee]} yards`}
-          badge={round.tee}
+          subtitle={`Par ${courseHole.par} · HCP ${courseHole.hcp} · ${selectedHoleYardage} yards · ${selectedTeeLabel}`}
+          badge={selectedTeeLabel}
         />
 
         {round.roundMode === 'tournament' ? (
@@ -1837,7 +1842,14 @@ export default function HoleEditorScreen() {
           <AppButton title="Green" onPress={() => setImageMode('green')} variant={imageMode === 'green' ? 'primary' : 'secondary'} style={{ flex: 1 }} />
         </View>
 
-        <Image source={holeImages[holeNumber][imageMode]} resizeMode="cover" style={styles.mainImage} />
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={`Preview ${imageMode} image`}
+          onPress={() => setPreviewImageMode(imageMode)}
+          style={({ pressed }) => [styles.mainImageButton, pressed ? styles.mainImageButtonPressed : null]}
+        >
+          <Image source={holeImages[holeNumber][imageMode]} resizeMode="cover" style={styles.mainImage} />
+        </Pressable>
 
         {wolfRound ? (
           <SectionCard style={{ gap: 12 }}>
@@ -2557,6 +2569,42 @@ export default function HoleEditorScreen() {
         </View>
       </ScrollView>
       <PlayerBottomNav />
+      <Modal
+        visible={previewImageMode !== null}
+        transparent
+        animationType="fade"
+        statusBarTranslucent
+        onRequestClose={() => setPreviewImageMode(null)}
+      >
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Close image preview"
+          style={styles.imagePreviewBackdrop}
+          onPress={() => setPreviewImageMode(null)}
+        >
+          <Pressable style={styles.imagePreviewContent} onPress={(event) => event.stopPropagation()}>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Close image preview"
+              hitSlop={10}
+              onPress={() => setPreviewImageMode(null)}
+              style={styles.imagePreviewCloseButton}
+            >
+              <MaterialIcons name="close" size={24} color="#fffdf8" />
+            </Pressable>
+            {previewImageMode ? (
+              <Image
+                source={holeImages[holeNumber][previewImageMode]}
+                resizeMode="contain"
+                style={[
+                  styles.imagePreviewImage,
+                  previewImageMode === 'green' ? styles.greenPreviewImage : null,
+                ]}
+              />
+            ) : null}
+          </Pressable>
+        </Pressable>
+      </Modal>
     </BrandWatermarkBackground>
   );
 }
@@ -2569,7 +2617,41 @@ const styles = StyleSheet.create({
   loading: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   subtitle: { color: '#5a6b61' },
   toolbar: { flexDirection: 'row', gap: 10 },
+  mainImageButton: { width: '100%', height: 280, borderRadius: 18, overflow: 'hidden' },
+  mainImageButtonPressed: { opacity: 0.92 },
   mainImage: { width: '100%', height: 280, borderRadius: 18 },
+  imagePreviewBackdrop: {
+    flex: 1,
+    backgroundColor: 'rgba(8, 14, 10, 0.88)',
+    paddingHorizontal: 16,
+    paddingVertical: 44,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  imagePreviewContent: {
+    width: '100%',
+    height: '82%',
+    justifyContent: 'center',
+  },
+  imagePreviewImage: {
+    width: '100%',
+    height: '100%',
+  },
+  greenPreviewImage: {
+    transform: [{ scale: 1.5 }],
+  },
+  imagePreviewCloseButton: {
+    position: 'absolute',
+    top: -6,
+    right: 0,
+    zIndex: 2,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: 'rgba(19, 33, 23, 0.82)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   saveHoleButton: {
     minHeight: 52,
     borderRadius: 14,

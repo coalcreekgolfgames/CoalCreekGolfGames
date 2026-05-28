@@ -225,7 +225,7 @@ function dedupeSearchResults(results: SearchPlayerResult[]) {
 export default function StartGroupRoundScreen() {
   const { profile, user } = useAuth();
   const [date, setDate] = useState(todayIsoDate());
-  const [tee, setTee] = useState<TeeOption>('Silver');
+  const [tee, setTee] = useState<TeeOption | null>(null);
   const [ratingType, setRatingType] = useState<RatingType>('men');
   const [groupName, setGroupName] = useState('');
   const [scorekeeperSeat, setScorekeeperSeat] = useState<number>(1);
@@ -238,6 +238,7 @@ export default function StartGroupRoundScreen() {
   const [wolfOrderParticipantIds, setWolfOrderParticipantIds] = useState<string[]>([]);
   const [wolfScoringMode, setWolfScoringMode] = useState<WolfScoringMode>('winner_only');
   const [nassauSelectedParticipantIds, setNassauSelectedParticipantIds] = useState<string[]>([]);
+  const [participantTeeById, setParticipantTeeById] = useState<Record<string, TeeOption | null>>({});
   const [groupSetupChoice, setGroupSetupChoice] = useState<GroupSetupChoice>('choose');
   const [savedGroups, setSavedGroups] = useState<RecurringRoundGroup[]>([]);
   const [savedGroupsLoading, setSavedGroupsLoading] = useState(false);
@@ -364,10 +365,10 @@ export default function StartGroupRoundScreen() {
   const meLast = profile?.last_name?.trim() || user?.user_metadata?.last_name || 'User';
   const welcomeName = getRoundWelcomeFirstName({ profile, user });
   const seatEntries = useMemo(() => ([
-    { firstName: guestOneFirst, lastName: guestOneLast, seat: 2 as EditableSeat },
-    { firstName: guestTwoFirst, lastName: guestTwoLast, seat: 3 as EditableSeat },
-    { firstName: guestThreeFirst, lastName: guestThreeLast, seat: 4 as EditableSeat },
-  ]), [guestOneFirst, guestOneLast, guestTwoFirst, guestTwoLast, guestThreeFirst, guestThreeLast]);
+    { firstName: guestOneFirst, lastName: guestOneLast, seat: 2 as EditableSeat, identity: seatIdentities[2] },
+    { firstName: guestTwoFirst, lastName: guestTwoLast, seat: 3 as EditableSeat, identity: seatIdentities[3] },
+    { firstName: guestThreeFirst, lastName: guestThreeLast, seat: 4 as EditableSeat, identity: seatIdentities[4] },
+  ]), [guestOneFirst, guestOneLast, guestTwoFirst, guestTwoLast, guestThreeFirst, guestThreeLast, seatIdentities]);
 
   const participants: GroupParticipant[] = useMemo(() => ([
     {
@@ -377,22 +378,24 @@ export default function StartGroupRoundScreen() {
       lastName: meLast,
       displayName: `${meFirst} ${meLast}`.trim(),
       isScorekeeper: scorekeeperSeat === 1,
+      selectedTee: participantTeeById[user?.id || 'me'] ?? tee ?? null,
     },
     ...seatEntries
-      .filter((entry) => entry.firstName.trim() && entry.lastName.trim())
+      .filter((entry) => !!`${entry.firstName.trim()} ${entry.lastName.trim()}`.trim() || !!entry.identity?.displayName?.trim())
       .map((entry) => {
         const identity = seatIdentities[entry.seat];
-        const displayName = `${entry.firstName.trim()} ${entry.lastName.trim()}`.trim();
+        const displayName = `${entry.firstName.trim()} ${entry.lastName.trim()}`.trim() || identity?.displayName?.trim() || 'Player';
         return {
           id: identity?.userId ?? identity?.guestProfileId ?? localGuestIds[entry.seat],
           type: identity?.userId ? 'app_user' as const : 'guest' as const,
-          firstName: entry.firstName.trim(),
+          firstName: entry.firstName.trim() || displayName.split(' ')[0] || 'Player',
           lastName: entry.lastName.trim(),
           displayName,
           isScorekeeper: scorekeeperSeat === entry.seat,
+          selectedTee: participantTeeById[identity?.userId ?? identity?.guestProfileId ?? localGuestIds[entry.seat]] ?? null,
         };
       }),
-  ]), [localGuestIds, meFirst, meLast, scorekeeperSeat, seatEntries, seatIdentities, user?.id]);
+  ]), [localGuestIds, meFirst, meLast, participantTeeById, scorekeeperSeat, seatEntries, seatIdentities, tee, user?.id]);
 
   const validParticipantIds = useMemo(
     () => participants.map((participant) => participant.id),
@@ -483,7 +486,22 @@ export default function StartGroupRoundScreen() {
     setWolfScoringMode((current) => current ?? 'winner_only');
   }, [groupGameMode]);
 
-  const rating = ratingInfoFor(tee, ratingType) as { rating: string | number; slope: string | number } | null;
+  useEffect(() => {
+    const participantIds = participants.map((participant) => participant.id);
+    setParticipantTeeById((current) => {
+      if (!tee) return current;
+      let changed = false;
+      const next = { ...current };
+      participantIds.forEach((participantId) => {
+        if (next[participantId]) return;
+        next[participantId] = tee;
+        changed = true;
+      });
+      return changed ? next : current;
+    });
+  }, [participants, tee]);
+
+  const rating = tee ? ratingInfoFor(tee, ratingType) as { rating: string | number; slope: string | number } | null : null;
 
   const getSeatValues = (seat: EditableSeat) => {
     if (seat === 2) return { firstName: guestOneFirst, lastName: guestOneLast };
@@ -493,6 +511,15 @@ export default function StartGroupRoundScreen() {
 
   const setSeatValues = (seat: EditableSeat, firstName: string, lastName: string, identity: SeatIdentity | null = null) => {
     setSeatIdentities((current) => ({ ...current, [seat]: identity }));
+    const participantId = identity?.userId ?? identity?.guestProfileId ?? localGuestIds[seat];
+    if (!firstName.trim() && !lastName.trim()) {
+      setParticipantTeeById((current) => {
+        if (!(participantId in current)) return current;
+        const next = { ...current };
+        delete next[participantId];
+        return next;
+      });
+    }
     if (seat === 2) {
       setGuestOneFirst(firstName);
       setGuestOneLast(lastName);
@@ -529,9 +556,9 @@ export default function StartGroupRoundScreen() {
 
   const seatHasPlayer = (seat: number) => {
     if (seat === 1) return true;
-    if (seat === 2) return !!guestOneFirst.trim() && !!guestOneLast.trim();
-    if (seat === 3) return !!guestTwoFirst.trim() && !!guestTwoLast.trim();
-    if (seat === 4) return !!guestThreeFirst.trim() && !!guestThreeLast.trim();
+    if (seat === 2) return !!`${guestOneFirst.trim()} ${guestOneLast.trim()}`.trim() || !!seatIdentities[2]?.displayName?.trim();
+    if (seat === 3) return !!`${guestTwoFirst.trim()} ${guestTwoLast.trim()}`.trim() || !!seatIdentities[3]?.displayName?.trim();
+    if (seat === 4) return !!`${guestThreeFirst.trim()} ${guestThreeLast.trim()}`.trim() || !!seatIdentities[4]?.displayName?.trim();
     return false;
   };
 
@@ -591,15 +618,22 @@ export default function StartGroupRoundScreen() {
       setSeatValues(3, '', '');
       setSeatValues(4, '', '');
 
+      const nextParticipantTees: Record<string, TeeOption | null> = {};
       members.forEach((member) => {
         if (member.seatOrder < 2 || member.seatOrder > 4) return;
         const seat = member.seatOrder as EditableSeat;
+        const participantId = member.userId ?? member.guestProfileId ?? localGuestIds[seat];
         setSeatValues(seat, member.firstName, member.lastName, {
           userId: member.userId,
           guestProfileId: member.guestProfileId,
           displayName: member.displayName,
         });
+        nextParticipantTees[participantId] = member.selectedTee ?? tee ?? null;
       });
+      setParticipantTeeById((current) => ({
+        ...current,
+        ...nextParticipantTees,
+      }));
 
       setScorekeeperSeat(1);
       setSaveAsRecurring(false);
@@ -657,6 +691,11 @@ export default function StartGroupRoundScreen() {
       return;
     }
 
+    if (!tee) {
+      Alert.alert('Choose a tee', 'Select the tee set this group is playing before starting the round.');
+      return;
+    }
+
     if (participants.length < 2) {
       Alert.alert('Add players', 'A group round should have at least two players.');
       return;
@@ -708,6 +747,15 @@ export default function StartGroupRoundScreen() {
       return;
     }
 
+    const participantsMissingTee = participants.filter((participant) => !participant.selectedTee);
+    if (participantsMissingTee.length > 0) {
+      Alert.alert(
+        'Choose player tees',
+        `Select a tee for ${participantsMissingTee.map((participant) => participant.displayName).join(', ')} before starting.`,
+      );
+      return;
+    }
+
     const buyInCents =
       groupGameMode === 'bingo_bango_bongo'
         ? parseCurrencyInputToCents(bbbBuyIn)
@@ -738,6 +786,7 @@ export default function StartGroupRoundScreen() {
       const backendStart = user?.id
         ? await startRegularGroupRound({
             roundDate: date,
+            teeName: tee,
             scoringUserId: user.id,
             participants,
             gameType: getBackendGroupGameType(groupGameMode),
@@ -990,10 +1039,33 @@ export default function StartGroupRoundScreen() {
         </View>
 
         <SectionCard style={{ backgroundColor: '#eef3ec', padding: 12 }}>
-          <Text style={styles.meta}>Total yardage: {totalYardageForTee(tee)}</Text>
+          <Text style={styles.meta}>Selected tee: {tee ? `${tee} Tees` : 'Choose a tee'}</Text>
+          <Text style={styles.meta}>Total yardage: {tee ? totalYardageForTee(tee) : '-'}</Text>
           <Text style={styles.meta}>
-            Rating info: {rating ? `${rating.rating} / ${rating.slope}` : 'Not posted for this tee/rating set'}
+            Rating info: {tee ? (rating ? `${rating.rating} / ${rating.slope}` : 'Not posted for this tee/rating set') : '-'}
           </Text>
+        </SectionCard>
+
+        <SectionCard style={{ backgroundColor: '#fffdf8', padding: 12, gap: 12 }}>
+          <Text style={styles.label}>Player tees</Text>
+          <Text style={styles.helper}>Choose each player's tee. Use the same tee only when the group is intentionally playing the same tees.</Text>
+          {participants.map((participant) => (
+            <View key={`participant-tee-${participant.id}`} style={styles.participantTeeRow}>
+              <Text style={styles.meta}>{participant.displayName}</Text>
+              <View style={styles.chips}>
+                {teeOptions.map((option) => (
+                  <AppButton
+                    key={`${participant.id}-${option}`}
+                    title={option}
+                    onPress={() => setParticipantTeeById((current) => ({ ...current, [participant.id]: option }))}
+                    variant={participant.selectedTee === option ? 'primary' : 'secondary'}
+                    compact
+                    style={styles.participantTeeButton}
+                  />
+                ))}
+              </View>
+            </View>
+          ))}
         </SectionCard>
       </SectionCard>
 
@@ -1409,6 +1481,8 @@ const styles = StyleSheet.create({
   label: { fontSize: 15, fontWeight: '800', color: '#132117' },
   chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
   chipButton: { minWidth: 120 },
+  participantTeeRow: { gap: 8 },
+  participantTeeButton: { minWidth: 92 },
   inlineRow: { flexDirection: 'row', gap: 10 },
   meta: { fontSize: 14, color: '#132117', lineHeight: 20 },
   sectionTitle: { fontSize: 18, fontWeight: '800', color: '#132117' },

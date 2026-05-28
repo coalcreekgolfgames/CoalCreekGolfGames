@@ -6,6 +6,7 @@ import { TournamentQuickNav } from '@/components/navigation/TournamentQuickNav';
 import { AppButton } from '@/components/ui/AppButton';
 import { AppInput } from '@/components/ui/AppInput';
 import { SectionCard } from '@/components/ui/SectionCard';
+import { holes as courseHoles, teeDisplayLabel, yardageForHoleAndTee } from '@/constants/course';
 import { getGroupRoundCompanionEntryProgress, type GroupRoundCompanionEntryProgress } from '@/lib/groupRoundCompanionProgress';
 import {
   getGroupRoundCompanionAccess,
@@ -52,6 +53,9 @@ export default function GroupRoundCompanionEntryScreen() {
   const [saving, setSaving] = useState(false);
   const [progress, setProgress] = useState<GroupRoundCompanionEntryProgress | null>(null);
   const holeNumberRef = useRef(holeNumber);
+  const courseHole = courseHoles[holeNumber - 1];
+  const selectedTeeLabel = access?.selected_tee ? teeDisplayLabel(access.selected_tee) : 'Tee not selected';
+  const selectedHoleYardage = access?.selected_tee && courseHole ? yardageForHoleAndTee(courseHole, access.selected_tee) : null;
 
   const logCompanionEntryDebug = (event: string, payload: Record<string, unknown>) => {
     if (!__DEV__) return;
@@ -302,6 +306,12 @@ export default function GroupRoundCompanionEntryScreen() {
             <Text style={styles.body}>Select score entry or stats entry before using the companion entry form.</Text>
             <AppButton title="Choose Mode" onPress={() => router.replace(`/round/companion/${roundId}` as any)} />
           </SectionCard>
+        ) : !access.selected_tee ? (
+          <SectionCard>
+            <Text style={styles.emptyTitle}>Choose your tee</Text>
+            <Text style={styles.body}>Select your tee before entering scores or stats so hole yardages match your round.</Text>
+            <AppButton title="Choose Tee" onPress={() => router.replace(`/round/companion/${roundId}` as any)} />
+          </SectionCard>
         ) : (
           <>
             <SectionCard>
@@ -322,6 +332,10 @@ export default function GroupRoundCompanionEntryScreen() {
 
             <SectionCard>
               <Text style={styles.sectionTitle}>Hole {holeNumber}</Text>
+              <Text style={styles.body}>
+                {selectedTeeLabel}
+                {selectedHoleYardage ? ` / ${selectedHoleYardage} yards` : ''}
+              </Text>
               <Text style={styles.body}>
                 {progress?.nextHoleNumber
                   ? `Defaulting to your earliest missing allowed hole: ${progress.nextHoleNumber}.`

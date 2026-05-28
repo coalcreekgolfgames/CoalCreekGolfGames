@@ -7,6 +7,7 @@ import { AppButton } from '@/components/ui/AppButton';
 import { PlayerBottomNav } from '@/components/navigation/PlayerBottomNav';
 import { SectionCard } from '@/components/ui/SectionCard';
 import { SettlementBreakdown } from '@/components/round/SettlementBreakdown';
+import { teeDisplayLabel } from '@/constants/course';
 import {
   bbbWinnerLabel,
   ensureGroupScoresForHole,
@@ -563,7 +564,7 @@ export default function ReviewRoundScreen() {
       <ScrollView style={styles.container} contentContainerStyle={styles.content}>
         <CoalCreekHeader />
         <Text style={styles.title}>{summaryTitle(round)}</Text>
-        <Text style={styles.subtitle}>{round.date} · {round.tee} · {round.ratingType}</Text>
+        <Text style={styles.subtitle}>{round.date} · {teeDisplayLabel(round.tee)} · {round.ratingType}</Text>
         {round.group?.groupName ? <Text style={styles.contextText}>{round.group.groupName}</Text> : null}
         {tournamentContextLine ? <Text style={styles.contextText}>{tournamentContextLine}</Text> : null}
         {regularRoundBackendStatusLabel ? (

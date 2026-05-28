@@ -1,5 +1,5 @@
 import { supabase } from '@/lib/supabase'
-import { holes } from '@/constants/course'
+import { DEFAULT_TEE_OPTION, holes, type RatingType, type TeeOption } from '@/constants/course'
 import { finalizeHoleStats, summarizeRound } from '@/lib/roundStats'
 import { getTournamentTeamContext } from '@/lib/tournaments'
 import {
@@ -573,14 +573,16 @@ export async function createTournamentDraftRound(params: {
   unlimitedRoundsAllowed?: boolean | null
   bestRoundsCount?: number | null
   specialHoleRules?: TournamentSpecialHoleRule[] | null
+  tee?: TeeOption | null
+  ratingType?: RatingType | null
 }): Promise<LocalRoundDraft> {
   const formatType = params.formatType ?? 'individual_stroke_play'
   assertTournamentFormatSupportedForMobileScoring(formatType)
   const baseDraft = applyTournamentRoundConfig({
     id: `${Date.now()}`,
     date: todayIsoDate(),
-    tee: 'Silver',
-    ratingType: 'men',
+    tee: params.tee ?? DEFAULT_TEE_OPTION,
+    ratingType: params.ratingType ?? 'men',
     currentHole: 1,
     holeSequence: buildHoleSequence(1),
     startingHole: 1,
